@@ -16,7 +16,7 @@ scriptencoding utf-8
 
 let s:DIRECTION = { 'FORWARD': 1, 'BACKWARD': 0 }
 
-function! edgemotion#move(dir) abort
+function! edgemotion#move(dir, count1) abort
   let delta = a:dir is# s:DIRECTION.FORWARD ? 1 : -1
   let curswant = getcurpos()[4]
   if curswant > 100000
@@ -25,34 +25,50 @@ function! edgemotion#move(dir) abort
   let vcol = virtcol('.')
   let orig_lnum = line('.')
 
-  let island_start = s:island(orig_lnum, vcol)
-  let island_next = s:island(orig_lnum + delta, vcol)
-
-  let should_move_to_land = !(island_start && island_next)
   let lnum = orig_lnum
-  let last_lnum = line('$')
+  let l:final_cmd = ''
 
-  if should_move_to_land
-    if (island_start && !island_next)
-      let lnum += delta
+  for i in range(1, a:count1)
+
+    let island_start = s:island(lnum, vcol)
+    let island_next = s:island(lnum + delta, vcol)
+
+    let should_move_to_land = !(island_start && island_next)
+    let last_lnum = line('$')
+
+    if should_move_to_land
+      if (island_start && !island_next)
+        let lnum += delta
+      endif
+      while lnum != 0 && lnum <= last_lnum && !s:island(lnum, vcol)
+        let lnum += delta
+      endwhile
+    else
+      while lnum != 0 && lnum <= last_lnum && s:island(lnum, vcol)
+        let lnum += delta
+      endwhile
+      let lnum -= delta
     endif
-    while lnum != 0 && lnum <= last_lnum && !s:island(lnum, vcol)
-      let lnum += delta
-    endwhile
-  else
-    while lnum != 0 && lnum <= last_lnum && s:island(lnum, vcol)
-      let lnum += delta
-    endwhile
-    let lnum -= delta
-  endif
 
-  " Edge not found.
-  if lnum == 0 || lnum == last_lnum + 1
-    return ''
-  endif
+    " Edge not found.
+    if lnum == 0 || lnum == last_lnum + 1
+      return l:final_cmd
+    endif
 
-  let move_cmd = a:dir is# s:DIRECTION.FORWARD ? 'j' : 'k'
-  return abs(lnum-orig_lnum) . move_cmd
+    let move_cmd = a:dir is# s:DIRECTION.FORWARD ? 'j' : 'k'
+    let l:final_cmd = abs(lnum-orig_lnum) . move_cmd
+
+  endfor
+
+  return l:final_cmd
+endfunction
+
+function! edgemotion#do_move(dir, count1) abort
+  let l:motion = edgemotion#move(a:dir, a:count1)
+  if l:motion ==# ''
+    return
+  endif
+  execute "normal! " . l:motion
 endfunction
 
 function! s:island(lnum, vcol) abort
